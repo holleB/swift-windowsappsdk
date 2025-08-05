@@ -1,3 +1,7 @@
+param(
+    [string]$SwiftWinRTExecutable = $null
+)
+
 function Get-SwiftWinRTVersion {
     $Projections = Get-Content -Path $PSScriptRoot\projections.json | ConvertFrom-Json
     return $Projections."swift-winrt"
@@ -74,10 +78,10 @@ function Copy-Project {
     }
 }
 
-
-function Invoke-SwiftWinRT() {
+function Invoke-SwiftWinRT {
     param(
-        [string]$PackagesDir
+        [string]$PackagesDir,
+        [string]$SwiftWinRTExecutable
     )
     $Projections = Get-Content -Path $PSScriptRoot\projections.json | ConvertFrom-Json
 
@@ -118,7 +122,18 @@ function Invoke-SwiftWinRT() {
     # write rsp params to file
     $RspFile = Join-Path $PSScriptRoot "swift-winrt.rsp"
     $RspParams | Out-File -FilePath $RspFile -Encoding ascii
-    & $PackagesDir\TheBrowserCompany.SwiftWinRT.$SwiftWinRTVersion\bin\swiftwinrt.exe "@$RspFile"
+
+    # Default path fallback
+    if (-not $SwiftWinRTExecutable) {
+        $SwiftWinRTExecutable = Join-Path $PackagesDir "TheBrowserCompany.SwiftWinRT.$SwiftWinRTVersion\bin\swiftwinrt.exe"
+    }
+
+    if (-not (Test-Path $SwiftWinRTExecutable)) {
+        Write-Host "SwiftWinRT executable not found at $SwiftWinRTExecutable" -ForegroundColor Red
+        exit 1
+    }
+
+    & $SwiftWinRTExecutable "@$RspFile"
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "swiftwinrt failed with error code $LASTEXITCODE" -ForegroundColor Red
@@ -186,6 +201,6 @@ function Copy-PackageAssets {
 
 $PackagesDir = Join-Path $PSScriptRoot ".packages"
 Restore-Nuget -PackagesDir $PackagesDir
-Invoke-SwiftWinRT -PackagesDir $PackagesDir
+Invoke-SwiftWinRT -PackagesDir $PackagesDir -SwiftWinRTExecutable $SwiftWinRTExecutable
 Copy-PackageAssets -PackagesDir $PackagesDir
 Write-Host "SwiftWinRT bindings generated successfully!" -ForegroundColor Green
