@@ -52,13 +52,14 @@ function Restore-Nuget {
     }
 }
 
-function Get-WinMDInputs() {
+function Get-WinMDInputs {
     param(
-        $Package
+        $Package,
+        $PackagesDir
     )
     $Id = $Package.Id
     $Version = $Package.Version
-    return Get-ChildItem -Path $PackagesDir\$Id.$Version\ -Filter *.winmd -Recurse
+    return Get-ChildItem -Path "$PackagesDir\$Id.$Version\" -Filter *.winmd -Recurse
 }
 
 function Copy-Project {
@@ -74,7 +75,7 @@ function Copy-Project {
         if (Test-Path $ProjectDir) {
             Remove-Item -Path $ProjectDir -Recurse -Force
         }
-        Copy-Item -Path $OutputLocation\Sources\$ProjectName -Destination $ProjectDir -Recurse -Force
+        Copy-Item -Path "$OutputLocation\Sources\$ProjectName" -Destination $ProjectDir -Recurse -Force
     }
 }
 
@@ -92,7 +93,7 @@ function Invoke-SwiftWinRT {
         Remove-Item -Path $OutputLocation -Recurse -Force
     }
 
-    $RspParams = "-output $OutputLocation`n"
+    $RspParams = "-output `"$OutputLocation`"`n"
 
     # read projections.json and for each "include" write to -include param. for each "exclude" write to -exclude param
     $Projections.Include | ForEach-Object {
@@ -103,23 +104,23 @@ function Invoke-SwiftWinRT {
     }
 
     if ($Projections.Package) {
-        Get-WinMDInputs -Package $Package | ForEach-Object {
-            $RspParams += "-input $($_.FullName)`n"
+        Get-WinMDInputs -Package $Projections.Package -PackagesDir $PackagesDir | ForEach-Object {
+            $RspParams += "-input `"$($_.FullName)`"`n"
         }
     }
 
     $Projections.Packages | ForEach-Object {
-        Get-WinMDInputs -Package $Package | ForEach-Object {
-            $RspParams += "-input $($_.FullName)`n"
-        }
-    }
-    $Projections.Dependencies | ForEach-Object {
-        Get-WinMDInputs -Package $Package | ForEach-Object {
-            $RspParams += "-input $($_.FullName)`n"
+        Get-WinMDInputs -Package $_ -PackagesDir $PackagesDir | ForEach-Object {
+            $RspParams += "-input `"$($_.FullName)`"`n"
         }
     }
 
-    # write rsp params to file
+    $Projections.Dependencies | ForEach-Object {
+        Get-WinMDInputs -Package $_ -PackagesDir $PackagesDir | ForEach-Object {
+            $RspParams += "-input `"$($_.FullName)`"`n"
+        }
+    }
+
     $RspFile = Join-Path $PSScriptRoot "swift-winrt.rsp"
     $RspParams | Out-File -FilePath $RspFile -Encoding ascii
 
